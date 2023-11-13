@@ -24,6 +24,9 @@ jobs:
       - run: pip install setuptools
       - run: pip install --upgrade httpcore
       - run: pip install pybind11
+      - run: pip install anyio==3.*
+      - run: pip install pandas
+      - run: pip install numpy
       - run: python setup.py install
       - run: coverage run access-tests.py
       - run: codecov
