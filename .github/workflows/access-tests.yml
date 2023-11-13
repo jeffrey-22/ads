@@ -28,6 +28,7 @@ jobs:
       - run: pip install anyio==3.*
       - run: pip install pandas
       - run: pip install numpy
+      - run: pip install pynose
       - run: python setup.py install
       - run: pwd
       - run: ls -la
