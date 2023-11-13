@@ -30,9 +30,9 @@ jobs:
       - run: pip install numpy
       - run: pip install pynose
       - run: python setup.py install
-      - run: pwd
-      - run: ls -la
-      - run: coverage run access_tests.py
+      - env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        run: coverage run access_tests.py
       - run: codecov
       - run: coveralls
             
