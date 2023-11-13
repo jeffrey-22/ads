@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import pynose as nose
+import nose
 import warnings
 
 # THese tests should be checking the known access problems, such as whether an excel file has turned a gene to a date or has more than 1,048,576 rows.
