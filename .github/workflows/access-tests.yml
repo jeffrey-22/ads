@@ -31,7 +31,7 @@ jobs:
       - run: python setup.py install
       - run: pwd
       - run: ls -la
-      - run: coverage run access-tests.py
+      - run: coverage run access_tests.py
       - run: codecov
       - run: coveralls
             
