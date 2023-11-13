@@ -33,6 +33,10 @@ jobs:
       - env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         run: coverage run access_tests.py
-      - run: codecov
-      - run: coveralls
+      - env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        run: codecov
+      - env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        run: coveralls
             
