@@ -11,4 +11,4 @@ def test_answer():
     assert func(3) == 5
 
 def test_imported():
-    assert dir(fynesse.access) == dir(fynesse.access)
+    assert fynesse.access.add_one(4) == 5
