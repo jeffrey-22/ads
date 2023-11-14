@@ -28,7 +28,7 @@ jobs:
       - run: pip install pandas
       - run: pip install numpy
       - run: pip install -U pytest
-      - run: python setup.py install
+      - run: pip install -e .
       - env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         run: coverage run test/address_tests.py

@@ -1,3 +1,4 @@
 **/__pycache__/
 **/.pytest_cache/
+**/fynesse.egg-info/
 secret_tokens.yaml
