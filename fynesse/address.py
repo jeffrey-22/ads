@@ -1,3 +1,7 @@
+from .config import *
+
+from . import assess
+
 # This file contains code for suporting addressing questions in the data
 
 """# Here are some of the imports we might expect 
