@@ -27,11 +27,11 @@ jobs:
       - run: pip install anyio==3.*
       - run: pip install pandas
       - run: pip install numpy
-      - run: pip install pynose
+      - run: pip install -U pytest
       - run: python setup.py install
       - env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        run: coverage run address_tests.py
+        run: coverage run test/address_tests.py
       - env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         run: codecov
