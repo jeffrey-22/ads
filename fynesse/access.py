@@ -6,6 +6,7 @@ import oauth2
 import tables
 import mongodb
 import sqlite"""
+import yaml
 
 # This file accesses the data
 
