@@ -27,7 +27,7 @@ VERSION = "0.1.0"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    "pandas", "numpy", "jupyter", "matplotlib", "pyyaml", 
+    "pandas", "numpy", "jupyter", "matplotlib", "pyyaml", "pymysql", 
 ]
 
 # What packages are optional?
