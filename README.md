@@ -10,45 +10,6 @@ For the fynesse template and the final report notebook.
 
 - run tests using ```pytest```
 
-- A: price, B: postcode
-- 
-```
-  
-INSERT INTO prices_coordinates_data (
-    postcode,
-    price,
-    date_of_transfer,
-    property_type,
-    new_build_flag,
-    tenure_type,
-    locality,
-    town_city,
-    district,
-    county,
-    country,
-    latitude,
-    longitude,
-    db_id
-)SELECT
-    A.postcode,
-    B.price,
-    B.date_of_transfer,
-    B.property_type,
-    B.new_build_flag,
-    B.tenure_type,
-    B.locality,
-    B.town_city,
-    B.district,
-    B.county,
-    A.country,
-    A.latitude,
-    A.longitude,
-    A.db_id
-FROM
-    pp_data A
-JOIN
-    postcode_data B ON A.postcode = B.postcode;
-
 ```
 
 # About Fynesse Template:

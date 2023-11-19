@@ -115,7 +115,7 @@ def create_pp_table(conn):
         cursor.execute(query)
     conn.commit()
 
-def upload_files_to_table(conn, pathnames, tablename, remove_file_as_uploading = False):
+def upload_files_to_table(conn, pathnames, tablename, remove_file_as_uploading = False, ignore_first_row = False):
     files_uploaded = 0
     for filename in pathnames:
         upload_filename = filename.replace('\\', '\\\\')
@@ -123,8 +123,12 @@ def upload_files_to_table(conn, pathnames, tablename, remove_file_as_uploading =
             query = f"                                                         \
             LOAD DATA LOCAL INFILE '{upload_filename}' INTO TABLE `{tablename}`\
             FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED by '\"'               \
-            LINES STARTING BY '' TERMINATED BY '\\n';                          \
+            LINES STARTING BY '' TERMINATED BY '\\n'                           \
             "
+            if ignore_first_row:
+                query += "IGNORE 1 LINES;"
+            else:
+                query += ";"
             cursor.execute(query)
             if remove_file_as_uploading:
                 os.remove(upload_filename)
@@ -181,12 +185,13 @@ def download_postcode_data(url = 'https://www.getthedata.com/downloads/open_post
     import os
     postcode_zipname = os.path.join("tmp_data", "open_postcode_geo.csv.zip")
     postcode_filename = os.path.join("tmp_data", "open_postcode_geo.csv")
+    extract_path = os.path.dirname(postcode_filename)
     download_file_requests(url, postcode_zipname)
 
     def unzip_file(zip_path):
         import zipfile
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall()
+            zip_ref.extractall(extract_path)
 
     unzip_file(postcode_zipname)
     return postcode_filename

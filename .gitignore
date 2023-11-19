@@ -3,3 +3,5 @@
 **/fynesse.egg-info/
 secret_tokens.yaml
 **/tmp_data/
+**/build/
+**/dist/
