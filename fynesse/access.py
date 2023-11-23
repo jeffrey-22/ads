@@ -1,6 +1,7 @@
 from .config import *
 
-import yaml, os, wget, requests, pymysql
+import yaml, os, wget, requests, pymysql, zipfile
+import dask.dataframe as dd
 
 # This file accesses the data
 
@@ -19,7 +20,6 @@ def retreive_database_details(token_pathname = "../public_tokens.yaml", database
     return pp_database_details
 
 def create_database(database_details):
-    import pymysql
     connection = pymysql.connect(
         host=database_details["database_url"],
         port=database_details["database_port"],
@@ -71,8 +71,7 @@ def download_price_data():
             assert(download_file(url, downloaded_pathnames))
     return downloaded_pathnames
 
-def create_connection(database_details):
-    conn = None
+def create_connection(database_details = retreive_database_details()):
     try:
         connection = pymysql.connect(
             host=database_details["database_url"],
@@ -182,14 +181,12 @@ def create_postcode_table(conn):
     conn.commit()
 
 def download_postcode_data(url = 'https://www.getthedata.com/downloads/open_postcode_geo.csv.zip'):
-    import os
     postcode_zipname = os.path.join("tmp_data", "open_postcode_geo.csv.zip")
     postcode_filename = os.path.join("tmp_data", "open_postcode_geo.csv")
     extract_path = os.path.dirname(postcode_filename)
     download_file_requests(url, postcode_zipname)
 
     def unzip_file(zip_path):
-        import zipfile
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(extract_path)
 
@@ -227,6 +224,105 @@ def create_prices_coordinates_table(conn):
             `longitude` decimal(10,8) NOT NULL,
             `db_id` bigint(20) unsigned NOT NULL
         ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1 ;
+        '''
+        cursor.execute(query)
+    conn.commit()
+
+def join_two_tables(price_table_pathname, postcode_table_pathname, joined_table_pathnames = set(), overwrite = True):
+    output_pathname = price_table_pathname.split('.')[0] + "-joined.csv"
+    if (overwrite or not (os.path.exists(output_pathname))):
+        column_names = [
+            'transaction_unique_identifier',
+            'price',
+            'date_of_transfer',
+            'postcode',
+            'property_type',
+            'new_build_flag',
+            'tenure_type',
+            'primary_addressable_object_name',
+            'secondary_addressable_object_name',
+            'street',
+            'locality',
+            'town_city',
+            'district',
+            'county',
+            'ppd_category_type',
+            'record_status'
+        ]
+        dtype_dict = {col: str for col in column_names}
+        table1 = dd.read_csv(price_table_pathname, header=None, names=column_names, dtype=dtype_dict)
+        table1 = table1[[
+            'postcode',
+            'price',
+            'date_of_transfer',
+            'property_type',
+            'new_build_flag',
+            'tenure_type',
+            'locality',
+            'town_city',
+            'district',
+            'county'
+        ]]
+        column_names = [
+            'postcode',
+            'status',
+            'usertype',
+            'easting',
+            'northing',
+            'positional_quality_indicator',
+            'country',
+            'latitude',
+            'longitude',
+            'postcode_no_space',
+            'postcode_fixed_width_seven',
+            'postcode_fixed_width_eight',
+            'postcode_area',
+            'postcode_district',
+            'postcode_sector',
+            'outcode',
+            'incode'
+        ]
+        dtype_dict = {col: str for col in column_names}
+        table2 = dd.read_csv(postcode_table_pathname, header=None, names=column_names, dtype=dtype_dict)
+        table2 = table2[[
+            'postcode',
+            'country',
+            'latitude',
+            'longitude'
+        ]]
+        result = dd.merge(table1, table2, on='postcode', how='inner')
+        result = result[[
+            'price',
+            'date_of_transfer',
+            'postcode',
+            'property_type',
+            'new_build_flag',
+            'tenure_type',
+            'locality',
+            'town_city',
+            'district',
+            'county',
+            'country',
+            'latitude',
+            'longitude'
+        ]]
+        result.to_csv(output_pathname, index=False, single_file=True)
+    joined_table_pathnames.add(output_pathname)
+    return joined_table_pathnames
+
+def join_all_tables(price_table_pathnames, postcode_table_pathname, joined_table_pathnames = set(), overwrite = True):
+    step = 0
+    for price_table_pathname in price_table_pathnames:
+        joined_table_pathnames = join_two_tables(price_table_pathname, postcode_table_pathname, joined_table_pathnames, overwrite)
+        step += 1
+    return joined_table_pathnames
+
+def setup_prices_coordinates_table(conn):
+    with conn.cursor() as cursor:
+        query = '''
+        ALTER TABLE `prices_coordinates_data`
+        MODIFY `db_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=1,
+        ADD PRIMARY KEY (`db_id`);
         '''
         cursor.execute(query)
     conn.commit()
