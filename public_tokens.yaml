@@ -1,4 +1,0 @@
-database_url : !!str database-ads-js2657.cgrre17yxw11.eu-west-2.rds.amazonaws.com
-database_port : !!int 3306
-database_username : !!str admin
-database_password : !!str 12345678

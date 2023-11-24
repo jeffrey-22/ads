@@ -7,14 +7,12 @@ import dask.dataframe as dd
 
 """Place commands in this file to access the data electronically. Don't remove any missing values, or deal with outliers. Make sure you have legalities correct, both intellectual property and personal data privacy rights. Beyond the legal side also think about the ethical issues around this data. """
 
-def retreive_database_details(token_pathname = "../public_tokens.yaml", database_name = "property_prices"):
-    with open(token_pathname) as file:
-        public_tokens = yaml.safe_load(file)
-    general_database_details = {"database_url": public_tokens["database_url"],
-                        "database_port": public_tokens["database_port"],
-                        "database_username": public_tokens["database_username"],
-                        "database_password": public_tokens["database_password"],
-                        }
+def retreive_database_details(database_name = "property_prices"):
+    general_database_details = {"database_url": config["database_url"],
+                                "database_port": config["database_port"],
+                                "database_username": config["database_username"],
+                                "database_password": config["database_password"],
+                                }
     pp_database_details = general_database_details.copy()
     pp_database_details["database_name"] = database_name
     return pp_database_details
