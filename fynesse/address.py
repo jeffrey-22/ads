@@ -1,119 +1,149 @@
 from .config import *
 
-from . import access
+from . import assess
 
-import osmnx as ox, pandas as pd
-from datetime import datetime
-default_tag_list = [{"amenity": 'school'},
-                    {"amenity": 'hospital'},
-                    {"amenity": 'library'},
-                    {"amenity": 'restaurant'},
-                    {"public_transport": True},
-                    {"shop": True},
-                    {"leisure": True}]
+import numpy as np, pandas as pd
+import statsmodels.api as sm
+from datetime import datetime, timedelta
+from datetime import date as date_class
+from datetime import datetime as datetime_class
 
-def get_pois_from_bbox(tag_list, bounding_box):
-    try:
-        pois = ox.features_from_bbox(north=bounding_box['north'], 
-                                        south=bounding_box['south'], 
-                                        west=bounding_box['west'], 
-                                        east=bounding_box['east'],
-                                        tags=tag_list)
-        return (len(pois), pois)
-    except:
-        return (0, ())
+def generate_suitable_bbox(latitude, longitude, default_bbox_size = 0.05):
+    status_code = 0
+    bbox = assess.generate_bbox(latitude, longitude, default_bbox_size)
+    return status_code, bbox
+
+def generate_suitable_date_range(pred_date, tolerable_days_exceeding_the_bounds = 500, default_range_size = 400):
+    latest_date_in_dateset = date_class(2022, 12, 31)
+    earliest_date_in_dataset = date_class(1995, 1, 1)
+
+    status_code = 0
+
+    target_date = pred_date
+    if (pred_date > latest_date_in_dateset + timedelta(days=tolerable_days_exceeding_the_bounds)):
+        status_code = 1
+        target_date = latest_date_in_dateset
     
-def generate_bbox(latitude, longitude, box_height = 0.04, box_width = 0.04):
-    return {
-        'north': latitude + box_height / 2,
-        'south': latitude - box_height / 2,
-        'west': longitude - box_width / 2,
-        'east': longitude + box_width / 2
+    if (pred_date < earliest_date_in_dataset - timedelta(days=tolerable_days_exceeding_the_bounds)):
+        status_code = 1
+        target_date = earliest_date_in_dataset
+    
+    left_bound = target_date - timedelta(days=default_range_size / 2)
+    right_bound = target_date + timedelta(default_range_size / 2)
+
+    if (left_bound < earliest_date_in_dataset):
+        delta = earliest_date_in_dataset - left_bound
+        left_bound += delta
+        right_bound += delta
+    if (right_bound > latest_date_in_dateset):
+        delta = right_bound - latest_date_in_dateset
+        left_bound -= delta
+        right_bound -= delta
+
+    date_range = {'start': left_bound,
+                  'end': right_bound}
+    
+    return status_code, date_range
+
+def process_feature_array_into_design_matrix(feature_array):
+    feature_array = feature_array.values
+
+    design_matrix = np.ones((feature_array.shape[0], 1))
+    for column_index in range(feature_array.shape[1]):
+        column_array = feature_array[:, column_index]
+        if (type(column_array[0]) is str):
+            unique_values = np.unique(column_array)
+            for value in unique_values:
+                new_column = np.where(column_array == value, 1, 0)
+                design_matrix = np.column_stack((design_matrix, new_column))
+        elif isinstance(column_array[0], date_class):
+            design_matrix = np.column_stack((design_matrix, np.array([d.days for d in column_array - date_class(1995, 1, 1)])))
+        elif (type(column_array[0]) is float):
+            design_matrix = np.column_stack((design_matrix, column_array))
+        else:
+            raise TypeError
+    design_matrix = np.asarray(design_matrix, dtype=np.float64)
+
+    return design_matrix
+
+def prepare_feature_array_and_target_array(price_data, pois_list, latitude, longitude, date, property_type):
+    target_array = price_data['price'].values
+    feature_array = price_data.drop('price', axis=1)
+    current_features = {
+        'date_of_transfer': date, 
+        'property_type': property_type, 
+        'latitude': latitude, 
+        'longitude':longitude,
     }
-
-# currently unused, might be useful for testing
-def get_closest_pois_list(tag_list, feature_list, latitude, longitude, start_deg = 0.002, end_deg = 0.5, increase_factor = 5):
-    pois_list = {}
-    for tag in tag_list:
-        [(k, v)] = tag.items()
-        box_size = start_deg
-        sz = 0
-        while (sz == 0):
-            (sz, pois) = get_pois_from_bbox(tag, generate_bbox(latitude, longitude, box_size, box_size))
-            if (box_size > end_deg):
-                break
-            box_size *= increase_factor
-        if (box_size <= end_deg):
-            pois = pois[[k] + feature_list]
-            pois_list[(k, v)] = pois
-    return pois_list
-
-# currently unused, might be useful for testing
-def distance_extraction_from_closest(latitude, longitude, tag_list = default_tag_list):
-    feature_list = ["geometry"]
-    pois_list = get_closest_pois_list(tag_list, feature_list, latitude, longitude)
-    distance_list = extract_closest_euclidean_dist_from_pois(pois_list, tag_list, latitude, longitude)
-    return list(distance_list.values())
-
-def extract_closest_euclidean_dist_from_pois(pois_list, tag, latitude, longitude, fail_filler = -1):
-    def euclidean_distance(a_loc, b_loc):
-        (a_lat, a_lon) = (a_loc.y, a_loc.x)
-        (b_lat, b_lon) = b_loc
-        return ((a_lat - b_lat) ** 2) + ((a_lon - b_lon) ** 2)
-    current_location = (latitude, longitude)
-    (k, v) = tag
-    if (k, v) in pois_list:
-        pois = pois_list[(k, v)]
-        distance = pois['geometry'].apply(lambda obj: euclidean_distance(obj.centroid, current_location)).min()
-    else:
-        distance = fail_filler
-    return distance
-
-def get_bounded_pois_list(tag_list, bounding_box):
-    pois_list = {}
-    for tag in tag_list:
-        [(k, v)] = tag.items()
-        (sz, pois) = get_pois_from_bbox(tag, bounding_box)
-        if (sz > 0):
-            pois = pois[[k, "geometry"]]
-            pois_list[(k, v)] = pois
-    return pois_list
-
-def select_all_price_data_within_bbox_and_date_range(bounding_box, date_range, conn):
-    lat_min = bounding_box["south"]
-    lat_max = bounding_box["north"]
-    lon_min = bounding_box["west"]
-    lon_max = bounding_box["east"]
-    date_min = date_range["start"]
-    date_max = date_range["end"]
-    query = f'SELECT price, date_of_transfer, property_type,\
-                latitude, longitude FROM prices_coordinates_data\
-                WHERE latitude >= {lat_min} AND latitude <= {lat_max} AND longitude >= {lon_min} AND longitude <= {lon_max}\
-                AND date_of_transfer >= \'{str(date_min)}\' AND date_of_transfer <= \'{str(date_max)}\''
-    return pd.read_sql_query(query, conn)
-
-def column_name_of_tag(tag):
-    (k, v) = tag
-    if (type(v) is str):
-        return k + "_" + v
-    else:
-        return k
-    
-def prepare_price_data_within_bbox_and_date_range(bounding_box, date_range, conn, \
-                                                  padding_deg = 0.1, tag_list = default_tag_list, \
-                                                  ):
-    pois_bounding_box = {'south': bounding_box['south'] - padding_deg,
-                         'north': bounding_box['north'] + padding_deg,
-                         'west': bounding_box['west'] - padding_deg,
-                         'east': bounding_box['east'] + padding_deg}
-    pois_list = get_bounded_pois_list(tag_list, pois_bounding_box)
-    price_data = select_all_price_data_within_bbox_and_date_range(bounding_box, date_range, conn)
     for (k, v) in pois_list:
-        col_name = column_name_of_tag((k, v))
-        price_data[col_name] = price_data.apply(lambda row: \
-                                                extract_closest_euclidean_dist_from_pois(pois_list,
-                                                                                         (k, v),
-                                                                                         row['latitude'], 
-                                                                                         row['longitude']), 
-                                                                                         axis=1)
-    return price_data, pois_list
+        col_name = assess.column_name_of_tag((k, v))
+        current_features[col_name] = assess.extract_closest_euclidean_dist_from_pois(pois_list, (k, v), latitude, longitude)
+    feature_array = pd.concat([feature_array, pd.DataFrame([current_features])], ignore_index=True)
+    return feature_array, target_array
+
+def validate_model(validation_level, result, model, feature_array, design_matrix, target_array, warning):
+    if validation_level >= 0:
+        print(f"==== Validation of current model, level {validation_level} ====")
+    if validation_level >= 1:
+        if warning == 1:
+            print(f"A warning is issued - this signals the results are poor (and this is expected)")
+        else:
+            print("No warning issued")
+    if validation_level >= 3:
+        print("""
+Details of each validation level:
+Level | Message
+  0   | No validation
+  1   | Warnings
+  2   | Summary
+  3   | Help message
+  4   | PCA of feature array
+  5   | Stratified Cross-Validation on training dataset
+              """)
+    if validation_level >= 2:
+        print(result.summary())
+    if validation_level >= 4:
+        # PCA
+        pass
+    if validation_level >= 5:
+        # CV
+        pass
+    if validation_level >= 0:
+        print(f"==== End of Validation ====")
+
+def predict_price(latitude, longitude, date, property_type, pp_database_conn,\
+                  validation_level = 2, default_bbox_size = 0.04, tolerable_days_exceeding_the_bounds = 500,\
+                  default_range_size = 400,\
+                  ):
+    """
+    Usage: TODO
+    """
+    if isinstance(date, datetime_class):
+        date = date.date()
+    status_code, training_bbox = generate_suitable_bbox(latitude, longitude, default_bbox_size)
+    warning = status_code
+    status_code, training_date_range = generate_suitable_date_range(date, tolerable_days_exceeding_the_bounds, default_range_size)
+    warning |= status_code
+    price_data, pois_list = \
+        assess.prepare_price_data_within_bbox_and_date_range(training_bbox, \
+                                                              training_date_range, \
+                                                              conn=pp_database_conn)
+    feature_array, target_array = prepare_feature_array_and_target_array(price_data, pois_list, \
+                                                                         latitude, longitude, date, property_type)
+    design_matrix = process_feature_array_into_design_matrix(feature_array)
+
+    training_design_matrix = design_matrix[:-1]
+    predicting_design_matrix = np.array(design_matrix[-1])
+    predict_model = sm.GLM(target_array, training_design_matrix, \
+                           family=sm.families.Gaussian(sm.genmod.families.links.Identity()))
+    result = predict_model.fit()
+    optimal_params = result.params
+    predict_result = predict_model.predict(optimal_params, predicting_design_matrix)
+
+    validate_model(validation_level, result, predict_model, feature_array, training_design_matrix, target_array, warning)
+
+    return predict_result
+
+# plan: plot a heat map corresponding to the price in cambridge
+def prediction_examples():
+    pass

@@ -6,16 +6,17 @@ For the fynesse template and the final report notebook.
 
 - access: licensing
 - access: tests
-- address: sanity check
-- address: general PCA & visualisation
-- address: tests
-- assess: summarise decisions and reasonings
-- assess: feature transform
-- assess: validation PCA
-- assess: cross-validation
-- assess: predict examples
+- assess: sanity check
+- assess: general PCA & visualisation
 - assess: tests
-- assess: llm documentation
+- address: summarise decisions and reasonings
+- address: feature transform
+- address: validation PCA
+- address: cross-validation
+- address: predict examples
+- address: tests
+- address: llm documentation
+- notebook transferring
 - code documentation
 - general documentation
 - code refactoring
