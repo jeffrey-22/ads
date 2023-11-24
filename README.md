@@ -4,13 +4,25 @@ For the fynesse template and the final report notebook.
 
 ## TODO:
 
-- everything
+- access: licensing
+- access: tests
+- address: sanity check
+- address: general PCA & visualisation
+- address: tests
+- assess: summarise decisions and reasonings
+- assess: feature transform
+- assess: validation PCA
+- assess: cross-validation
+- assess: predict examples
+- assess: tests
+- assess: llm documentation
+- code documentation
+- general documentation
+- code refactoring
 
 ## Notes:
 
 - run tests using ```pytest```
-
-```
 
 # About Fynesse Template:
 
