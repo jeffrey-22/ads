@@ -28,13 +28,10 @@ For the fynesse template and the final report notebook.
 
 There are mainly three data sources used in this project:
 
-- [UK House Price Data](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads
-)
-
-  - Contains HM Land Registry data © Crown copyright and database right 2021. This data is licensed under the Open Government Licence v3.0.
+- [UK House Price Data](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads)
+  - Contains HM Land Registry data © Crown copyright and database right 2021. This data is licensed under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
 
 - [Open Postcode Geo](https://www.getthedata.com/open-postcode-geo)
-
     - Open Postcode Geo is derived from the ONS Postcode Directory which is licenced under the Open Government Licence and the Ordnance Survey OpenData Licence. See the [ONS Licences](https://www.ons.gov.uk/methodology/geography/licences) page for more information.
 
 - [OpenStreetMap](https://openstreetmap.org/copyright)
