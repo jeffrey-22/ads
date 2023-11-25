@@ -34,6 +34,8 @@ jobs:
       - run: pip install numpy
       - run: pip install -U pytest
       - run: pip install -e .
+      - name: Install dependencies
+        run: pip install pytest pytest-md pytest-emoji
       - name: Run pytest
         uses: pavelzw/pytest-action@v2
         with:
