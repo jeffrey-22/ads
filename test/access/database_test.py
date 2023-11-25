@@ -17,10 +17,9 @@ def test_select_count_postcode(access_module):
     assert(res == 2631536)
 
 @pytest.mark.slow_for_db
-def test_select_count_price_coordinates(access_module):
+def test_select_count_prices_coordinates(access_module):
     conn = access_module.create_connection()
-    res = access_module.select_count(conn, 'price_coordinates_data')
+    res = access_module.select_count(conn, 'prices_coordinates_data')
     while not (type(res) is int):
         res = res[0]
-    assert(res <= 28258161)
-    print(f"res={res}")
+    assert(res == 28210620)

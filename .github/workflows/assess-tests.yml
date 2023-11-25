@@ -34,17 +34,12 @@ jobs:
       - run: pip install numpy
       - run: pip install -U pytest
       - run: pip install -e .
-      - env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        run: coverage run test/assess_tests.py
-      - env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        run: codecov
-      - env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        run: coveralls
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-            
+      - name: Run pytest
+        uses: pavelzw/pytest-action@v2
+        with:
+          verbose: true
+          emoji: false
+          job-summary: true
+          custom-arguments: test/assess '-q'
+          click-to-expand: true
+          report-title: 'Assess Test Report'

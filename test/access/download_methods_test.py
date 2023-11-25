@@ -1,4 +1,5 @@
 import os, pytest, csv, pandas as pd
+from pathlib import Path
 
 def test_wget_small_download(access_module):
     os.makedirs("tmp_data", exist_ok=True)
@@ -77,29 +78,28 @@ def test_joined_data(access_module):
     joined_paths = sorted(joined_paths, key=change_key)
     downloaded_pathnames = sorted(downloaded_pathnames, key=change_key)
     assert(len(joined_paths) == len(downloaded_pathnames))
+    totlen = 0
     for i in range(len(joined_paths)):
         pj = joined_paths[i]
         po = downloaded_pathnames[i]
-        dfj = pd.read_csv(pj)['postcode'].sort_values()
-        dfo = pd.read_csv(po, header=0)[3].sort_values()
-        assert(len(dfj <= dfo))
+        dfj = pd.read_csv(Path(pj))['postcode'].sort_values()
+        dfo = pd.read_csv(Path(po), header=0)[3].sort_values()
+        assert(len(dfj) <= len(dfo))
+        totlen += len(dfj)
         pj = 0
         po = 0
         nmatch = 0
-        unmatched = []
         while (pj < len(dfj) and po < len(dfo)):
-            if dfj[pj] == dfo[po]:
+            if dfj.iloc[pj] == dfo.iloc[po]:
                 nmatch += 1
                 pj += 1
                 po += 1
             else:
-                unmatched.append(po)
+                assert ' ' in dfo.iloc[po]
+                assert len(dfo[po]) >= 7
                 po += 1
-        print(f"unmatched:{unmatched}")
-        for code in unmatched:
-            assert ' ' in code
         assert nmatch * 100 >= len(dfo) * 95
-        
+    assert totlen == 28210620
     for path in downloaded_pathnames:
         os.remove(path)
     for path in joined_paths:

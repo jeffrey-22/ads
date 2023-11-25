@@ -4,6 +4,7 @@ For the fynesse template and the final report notebook.
 
 ## TODO:
 
+- setup pytest properly
 - access: tests
 - assess: sanity check
 - assess: general PCA & visualisation
@@ -23,6 +24,7 @@ For the fynesse template and the final report notebook.
 ## Notes:
 
 - run tests using ```pytest```
+- Joined table is smaller: some postcodes are no longer valid now
 
 ## Data Source
 
