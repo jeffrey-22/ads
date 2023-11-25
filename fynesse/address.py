@@ -111,7 +111,7 @@ Level | Message
     if validation_level >= 0:
         print(f"==== End of Validation ====")
 
-def predict_price(latitude, longitude, date, property_type, pp_database_conn = access.create_connection(),\
+def predict_price(latitude, longitude, date, property_type, pp_database_conn = access.DatabaseConnection.get_connection(),\
                   validation_level = 2, default_bbox_size = 0.04, tolerable_days_exceeding_the_bounds = 500,\
                   default_range_size = 400,\
                   ):

@@ -14,7 +14,7 @@ default_tag_list = [{"amenity": 'school'},
                     {"shop": True},
                     {"leisure": True}]
 
-def prices_coordinates_database_content_check(conn = access.create_connection()):
+def prices_coordinates_database_content_check(conn = access.DatabaseConnection.get_connection()):
     query = f'SELECT price, date_of_transfer, property_type,\
               latitude, longitude FROM prices_coordinates_data'
     df = pd.read_sql_query(query, conn)
@@ -33,7 +33,7 @@ def prices_coordinates_database_content_check(conn = access.create_connection())
     ok &= df['longitude'].max() <= 20
     return ok
 
-def extract_locations_from_prices_coordinates_database(conn = access.create_connection()):
+def extract_locations_from_prices_coordinates_database(conn = access.DatabaseConnection.get_connection()):
     query = f'SELECT price, date_of_transfer, property_type,\
               latitude, longitude FROM prices_coordinates_data'
     df = pd.read_sql_query(query, conn)
