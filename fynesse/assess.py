@@ -18,13 +18,28 @@ default_tag_list = [{"amenity": 'school'},
 
 class PricesCoordinatesData:
     _data = None
+    prices_coordinates_data_sample_limit = None
+
+    @staticmethod
+    def fetch_sample_limit():
+        return config['prices_coordinates_data_sample_limit']
 
     @staticmethod
     def fetch_data():
         conn = access.DatabaseConnection.get_connection()
         query = f'SELECT price, date_of_transfer, property_type,\
                     latitude, longitude FROM prices_coordinates_data'
+        if PricesCoordinatesData.prices_coordinates_data_sample_limit is None:
+            PricesCoordinatesData.prices_coordinates_data_sample_limit = PricesCoordinatesData.fetch_sample_limit()
+            assert(PricesCoordinatesData.prices_coordinates_data_sample_limit >= 0)
+            assert(PricesCoordinatesData.prices_coordinates_data_sample_limit <= 28210620)
+            query += f" LIMIT {PricesCoordinatesData.prices_coordinates_data_sample_limit};"
         return pd.read_sql_query(query, conn)
+
+    @staticmethod
+    def reset_data_with_new_sample_limit(new_sample_limit):
+        PricesCoordinatesData.prices_coordinates_data_sample_limit = new_sample_limit
+        PricesCoordinatesData._data = PricesCoordinatesData.fetch_data()
 
     def __init__(self):
         if PricesCoordinatesData._data is None:
@@ -53,8 +68,7 @@ def prices_coordinates_database_content_check():
     ok &= df['longitude'].max() <= 20
     return ok
 
-def extract_locations_from_prices_coordinates_database():
-    df = PricesCoordinatesData.get_data()
+def extract_locations_from_prices_coordinates_database(df = PricesCoordinatesData.get_data()):
     df = df[['latitude', 'longitude']]
     df = df[~df.duplicated(keep='last')]
     return df
@@ -146,14 +160,42 @@ def column_name_of_tag(tag):
         return k + "_" + v
     else:
         return k
+
+def find_bounding_box_for_price_data(price_data):
+    assert set(price_data.columns).issubset(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude']), \
+        'cannot find all price data columns'
+    bounding_box = {}
+    bounding_box["south"] = price_data['latitude'].min()
+    bounding_box["north"] = price_data['latitude'].max()
+    bounding_box["west"] = price_data['longitude'].min()
+    bounding_box["east"] = price_data['longitude'].max()
+    return bounding_box
+
+def pad_bounding_box(bounding_box, padding_deg = 0.1):
+    padded_bounding_box = {'south': bounding_box['south'] - padding_deg,
+                           'north': bounding_box['north'] + padding_deg,
+                           'west': bounding_box['west'] - padding_deg,
+                           'east': bounding_box['east'] + padding_deg}
+    return padded_bounding_box
+
+def prepare_full_price_data_from_price_data(price_data, padding_deg = 0.1, tag_list = default_tag_list):
+    bounding_box = find_bounding_box_for_price_data(price_data)
+    pois_bounding_box = pad_bounding_box(bounding_box, padding_deg)
+    pois_list = get_bounded_pois_list(tag_list, pois_bounding_box)
+    for (k, v) in pois_list:
+        col_name = column_name_of_tag((k, v))
+        price_data[col_name] = price_data.apply(lambda row: \
+                                                extract_closest_euclidean_dist_from_pois(pois_list,
+                                                                                         (k, v),
+                                                                                         row['latitude'], 
+                                                                                         row['longitude']), 
+                                                                                         axis=1)
+    return price_data, pois_list
     
-def prepare_price_data_within_bbox_and_date_range(bounding_box, date_range, conn, \
+def prepare_full_price_data_within_bbox_and_date_range(bounding_box, date_range, conn, \
                                                   padding_deg = 0.1, tag_list = default_tag_list, \
                                                   ):
-    pois_bounding_box = {'south': bounding_box['south'] - padding_deg,
-                         'north': bounding_box['north'] + padding_deg,
-                         'west': bounding_box['west'] - padding_deg,
-                         'east': bounding_box['east'] + padding_deg}
+    pois_bounding_box = pad_bounding_box(bounding_box, padding_deg)
     pois_list = get_bounded_pois_list(tag_list, pois_bounding_box)
     price_data = select_all_price_data_within_bbox_and_date_range(bounding_box, date_range, conn)
     for (k, v) in pois_list:
@@ -180,23 +222,45 @@ def date_to_days_encode_column(df, column_name):
     if isinstance(example_obj, datetime.datetime):
         data = data.apply(lambda dt: (dt - reference_date).days)
     elif isinstance(example_obj, datetime.date):
-        data = data.apply(lambda dt: (dt - reference_date.day()).days)
+        data = data.apply(lambda dt: (dt - reference_date.date()).days)
     else:
         raise ValueError("Unsupported type in df. Supported types: datetime, date")
     df[column_name] = data
     return df
 
-def general_PCA_plot(data, n_components):
-    X = data
-
-    pca = PCA(n_components=n_components)
-    X_pca = pca.fit_transform(X)
-
-    plt.scatter(X_pca[:, 0], X_pca[:, 1], edgecolor='k', s=40)
-    plt.title('Data After PCA (2 Components)')
+def general_PCA_plot(df):
+    df_standardized = (df - df.mean()) / df.std()
+    assert df.notnull().all().all()
+    pca = PCA(n_components=2)
+    principal_components = pca.fit_transform(df_standardized)
+    pc_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
+    plt.scatter(pc_df['PC1'], pc_df['PC2'])
+    plt.title('PCA Plot')
     plt.xlabel('Principal Component 1')
     plt.ylabel('Principal Component 2')
     plt.show()
 
-    explained_variance_ratio = pca.explained_variance_ratio_
-    print("Explained Variance Ratio:", explained_variance_ratio)
+def general_PCA_plot_with_one_column_colorcoded(df, colorcoded_column_name = 'price'):
+    assert df.notnull().all().all()
+    assert colorcoded_column_name in df.columns
+    columns_for_PCA = df.columns.difference([colorcoded_column_name])
+    df_standardized = (df[columns_for_PCA] - df[columns_for_PCA].mean()) / df[columns_for_PCA].std()
+    pca = PCA(n_components=2)
+    principal_components = pca.fit_transform(df_standardized)
+    pc_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
+    plt.scatter(pc_df['PC1'], pc_df['PC2'], c=df[colorcoded_column_name], cmap='viridis')
+    plt.title(f'PCA Plot with {colorcoded_column_name} color coded')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.colorbar(label=colorcoded_column_name)
+    plt.show()
+
+def plot_general_house_distribution(price_data):
+    pass
+
+def encode_pure_price_data(price_data):
+    assert set(price_data.columns).issubset(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude'])
+    price_data = price_data.copy()
+    price_data = one_hot_encode_column(price_data, 'property_type')
+    price_data = date_to_days_encode_column(price_data, 'date_of_transfer')
+    return price_data

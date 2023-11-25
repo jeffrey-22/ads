@@ -4,8 +4,7 @@ For the fynesse template and the final report notebook.
 
 ## TODO:
 
-- assess: general PCA & visualisation
-- assess: tests
+- assess: general visualisation
 - address: summarise decisions and reasonings
 - address: feature transform
 - address: validation PCA
@@ -22,6 +21,7 @@ For the fynesse template and the final report notebook.
 
 - run tests using ```pytest```
 - Joined table is smaller: some postcodes are no longer valid now
+- A very interesting note I have when coding the assess part - is there an efficient way of randomly sampling a huge database?
 
 ## Data Source
 

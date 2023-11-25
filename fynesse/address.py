@@ -125,9 +125,9 @@ def predict_price(latitude, longitude, date, property_type, pp_database_conn = a
     status_code, training_date_range = generate_suitable_date_range(date, tolerable_days_exceeding_the_bounds, default_range_size)
     warning |= status_code
     price_data, pois_list = \
-        assess.prepare_price_data_within_bbox_and_date_range(training_bbox, \
-                                                              training_date_range, \
-                                                              conn=pp_database_conn)
+        assess.prepare_full_price_data_within_bbox_and_date_range(training_bbox, \
+                                                                  training_date_range, \
+                                                                  conn=pp_database_conn)
     feature_array, target_array = prepare_feature_array_and_target_array(price_data, pois_list, \
                                                                          latitude, longitude, date, property_type)
     design_matrix = process_feature_array_into_design_matrix(feature_array)
