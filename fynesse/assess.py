@@ -5,6 +5,8 @@ from . import access
 import osmnx as ox, pandas as pd, numpy as np
 from datetime import datetime
 import datetime
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 
 default_tag_list = [{"amenity": 'school'},
                     {"amenity": 'hospital'},
@@ -14,10 +16,28 @@ default_tag_list = [{"amenity": 'school'},
                     {"shop": True},
                     {"leisure": True}]
 
-def prices_coordinates_database_content_check(conn = access.DatabaseConnection.get_connection()):
-    query = f'SELECT price, date_of_transfer, property_type,\
-              latitude, longitude FROM prices_coordinates_data'
-    df = pd.read_sql_query(query, conn)
+class PricesCoordinatesData:
+    _data = None
+
+    @staticmethod
+    def fetch_data():
+        conn = access.DatabaseConnection.get_connection()
+        query = f'SELECT price, date_of_transfer, property_type,\
+                    latitude, longitude FROM prices_coordinates_data'
+        return pd.read_sql_query(query, conn)
+
+    def __init__(self):
+        if PricesCoordinatesData._data is None:
+            PricesCoordinatesData._data = PricesCoordinatesData.fetch_data()
+
+    @staticmethod
+    def get_data():
+        if PricesCoordinatesData._data is None:
+            PricesCoordinatesData._data = PricesCoordinatesData.fetch_data()
+        return PricesCoordinatesData._data.copy()
+
+def prices_coordinates_database_content_check():
+    df = PricesCoordinatesData.get_data()
     ok = True
     ok &= len(df) > 1000
     ok &= not df.isnull().values.any()
@@ -33,10 +53,8 @@ def prices_coordinates_database_content_check(conn = access.DatabaseConnection.g
     ok &= df['longitude'].max() <= 20
     return ok
 
-def extract_locations_from_prices_coordinates_database(conn = access.DatabaseConnection.get_connection()):
-    query = f'SELECT price, date_of_transfer, property_type,\
-              latitude, longitude FROM prices_coordinates_data'
-    df = pd.read_sql_query(query, conn)
+def extract_locations_from_prices_coordinates_database():
+    df = PricesCoordinatesData.get_data()
     df = df[['latitude', 'longitude']]
     df = df[~df.duplicated(keep='last')]
     return df
@@ -147,3 +165,38 @@ def prepare_price_data_within_bbox_and_date_range(bounding_box, date_range, conn
                                                                                          row['longitude']), 
                                                                                          axis=1)
     return price_data, pois_list
+
+def one_hot_encode_column(df, column_name):
+    one_hot_encoded_df = pd.get_dummies(df[column_name])
+    one_hot_encoded_df.columns = [column_name + "_" + val for val in one_hot_encoded_df.columns]
+    df = df.drop(column_name, axis=1)
+    df = pd.concat([df, one_hot_encoded_df], axis=1)
+    return df
+
+def date_to_days_encode_column(df, column_name):
+    reference_date = datetime.datetime(1990, 1, 1)
+    example_obj = df.iloc[0][column_name]
+    data = df[column_name]
+    if isinstance(example_obj, datetime.datetime):
+        data = data.apply(lambda dt: (dt - reference_date).days)
+    elif isinstance(example_obj, datetime.date):
+        data = data.apply(lambda dt: (dt - reference_date.day()).days)
+    else:
+        raise ValueError("Unsupported type in df. Supported types: datetime, date")
+    df[column_name] = data
+    return df
+
+def general_PCA_plot(data, n_components):
+    X = data
+
+    pca = PCA(n_components=n_components)
+    X_pca = pca.fit_transform(X)
+
+    plt.scatter(X_pca[:, 0], X_pca[:, 1], edgecolor='k', s=40)
+    plt.title('Data After PCA (2 Components)')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.show()
+
+    explained_variance_ratio = pca.explained_variance_ratio_
+    print("Explained Variance Ratio:", explained_variance_ratio)

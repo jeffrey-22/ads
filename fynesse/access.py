@@ -84,30 +84,25 @@ def create_connection(database_details = retreive_database_details()):
     return connection
 
 class DatabaseConnection:
-    _connection = None  # Class variable to store the connection
+    _connection = None
 
     def __init__(self):
-        # You may choose to enforce that instances are not created
-        # or create a singleton pattern if you want a single connection.
         if DatabaseConnection._connection is None:
             DatabaseConnection._connection = create_connection()
 
     @staticmethod
     def get_connection():
         if DatabaseConnection._connection is None:
-            # Create a new connection if one doesn't exist
             DatabaseConnection._connection = create_connection()
         return DatabaseConnection._connection
 
     @staticmethod
     def close_connection():
-        # Close the connection if it exists
         if DatabaseConnection._connection is not None:
             DatabaseConnection._connection.close()
             DatabaseConnection._connection = None
 
     def __del__(self):
-        # Called when the object is about to be destroyed
         self.close_connection()
 
 def create_pp_table(conn):
