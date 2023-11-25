@@ -19,7 +19,7 @@ def prices_coordinates_database_content_check(conn = access.create_connection())
               latitude, longitude FROM prices_coordinates_data'
     df = pd.read_sql_query(query, conn)
     ok = True
-    ok &= len(pd) > 1000
+    ok &= len(df) > 1000
     ok &= not df.isnull().values.any()
     ok &= np.isfinite(df.values).all()
     ok &= df['price'].min() > 0
@@ -33,6 +33,8 @@ def prices_coordinates_database_content_check(conn = access.create_connection())
     ok &= df['longitude'].min() >= -10
     ok &= df['longitude'].max() <= 20
     return ok
+
+
 
 def extract_locations_from_prices_coordinates_database(conn = access.create_connection()):
     query = f'SELECT price, date_of_transfer, property_type,\
