@@ -4,9 +4,6 @@ For the fynesse template and the final report notebook.
 
 ## TODO:
 
-- setup pytest properly
-- access: tests
-- assess: sanity check
 - assess: general PCA & visualisation
 - assess: tests
 - address: summarise decisions and reasonings
