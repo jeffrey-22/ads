@@ -12,6 +12,11 @@ default_tag_list = [{"amenity": 'school'},
                     {"shop": True},
                     {"leisure": True}]
 
+def prices_coordinates_database_content_check(conn):
+    query = f'SELECT price, date_of_transfer, property_type,\
+              latitude, longitude FROM prices_coordinates_data'
+    df = pd.read_sql_query(query, conn)
+
 def get_pois_from_bbox(tag_list, bounding_box):
     try:
         pois = ox.features_from_bbox(north=bounding_box['north'], 

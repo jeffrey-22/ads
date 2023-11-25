@@ -24,6 +24,7 @@ def test_requests_small_download(access_module):
 
 @pytest.mark.slow_locally
 def test_download_price_data(access_module):
+    pass
     os.makedirs("tmp_data", exist_ok=True)
     downloaded_pathnames = access_module.download_price_data()
     for year in range(1995, 2022 + 1):
@@ -55,6 +56,7 @@ def test_download_price_data(access_module):
 
 @pytest.mark.slow_locally
 def test_download_postcode_data(access_module):
+    pass
     os.makedirs("tmp_data", exist_ok=True)
     path = access_module.download_postcode_data()
     assert os.path.isfile(path)
@@ -69,6 +71,7 @@ def test_download_postcode_data(access_module):
 
 @pytest.mark.slow_locally
 def test_joined_data(access_module):
+    pass
     os.makedirs("tmp_data", exist_ok=True)
     downloaded_pathnames = access_module.download_price_data()
     postcode_path = access_module.download_postcode_data()
