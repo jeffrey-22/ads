@@ -2,8 +2,10 @@ from .config import *
 
 from . import access
 
-import osmnx as ox, pandas as pd
+import osmnx as ox, pandas as pd, numpy as np
 from datetime import datetime
+import datetime
+
 default_tag_list = [{"amenity": 'school'},
                     {"amenity": 'hospital'},
                     {"amenity": 'library'},
@@ -12,10 +14,33 @@ default_tag_list = [{"amenity": 'school'},
                     {"shop": True},
                     {"leisure": True}]
 
-def prices_coordinates_database_content_check(conn):
+def prices_coordinates_database_content_check(conn = access.create_connection()):
     query = f'SELECT price, date_of_transfer, property_type,\
               latitude, longitude FROM prices_coordinates_data'
     df = pd.read_sql_query(query, conn)
+    ok = True
+    ok &= len(pd) > 1000
+    ok &= not df.isnull().values.any()
+    ok &= np.isfinite(df.values).all()
+    ok &= df['price'].min() > 0
+    ok &= df['price'].max() < 10000000000
+    ok &= type(df['date_of_transfer'].iloc[0]) is datetime.date
+    ok &= df['date_of_transfer'].min() == datetime.date(1995, 1, 1)
+    ok &= df['date_of_transfer'].max() == datetime.date(2022, 12, 31)
+    ok &= sorted(df['property_type'].unique()) == sorted(np.array(['D', 'S', 'T', 'F', 'O']))
+    ok &= df['latitude'].min() >= 48
+    ok &= df['latitude'].max() <= 65
+    ok &= df['longitude'].min() >= -10
+    ok &= df['longitude'].max() <= 20
+    return ok
+
+def extract_locations_from_prices_coordinates_database(conn = access.create_connection()):
+    query = f'SELECT price, date_of_transfer, property_type,\
+              latitude, longitude FROM prices_coordinates_data'
+    df = pd.read_sql_query(query, conn)
+    df = df[['latitude', 'longitude']]
+    df = df[~df.duplicated(keep='last')]
+    return df
 
 def get_pois_from_bbox(tag_list, bounding_box):
     try:
@@ -36,8 +61,7 @@ def generate_bbox(latitude, longitude, box_height = 0.04, box_width = 0.04):
         'east': longitude + box_width / 2
     }
 
-# currently unused, might be useful for testing
-def get_closest_pois_list(tag_list, feature_list, latitude, longitude, start_deg = 0.002, end_deg = 0.5, increase_factor = 5):
+def get_closest_pois_list(tag_list, feature_list, latitude, longitude, start_deg = 0.002, end_deg = 3, increase_factor = 4):
     pois_list = {}
     for tag in tag_list:
         [(k, v)] = tag.items()
@@ -53,13 +77,6 @@ def get_closest_pois_list(tag_list, feature_list, latitude, longitude, start_deg
             pois_list[(k, v)] = pois
     return pois_list
 
-# currently unused, might be useful for testing
-def distance_extraction_from_closest(latitude, longitude, tag_list = default_tag_list):
-    feature_list = ["geometry"]
-    pois_list = get_closest_pois_list(tag_list, feature_list, latitude, longitude)
-    distance_list = extract_closest_euclidean_dist_from_pois(pois_list, tag_list, latitude, longitude)
-    return list(distance_list.values())
-
 def extract_closest_euclidean_dist_from_pois(pois_list, tag, latitude, longitude, fail_filler = -1):
     def euclidean_distance(a_loc, b_loc):
         (a_lat, a_lon) = (a_loc.y, a_loc.x)
@@ -73,6 +90,15 @@ def extract_closest_euclidean_dist_from_pois(pois_list, tag, latitude, longitude
     else:
         distance = fail_filler
     return distance
+
+def distance_extraction_from_closest(latitude, longitude, tag_list = default_tag_list):
+    feature_list = ["geometry"]
+    pois_list = get_closest_pois_list(tag_list, feature_list, latitude, longitude)
+    distance_list = []
+    for tag in tag_list:
+        assert len(list(tag.items())) == 1
+        distance_list.append(extract_closest_euclidean_dist_from_pois(pois_list, list(tag.items())[0], latitude, longitude))
+    return distance_list
 
 def get_bounded_pois_list(tag_list, bounding_box):
     pois_list = {}

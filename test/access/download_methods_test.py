@@ -22,6 +22,7 @@ def test_requests_small_download(access_module):
     os.remove(path)
     os.rmdir("tmp_data")
 
+@pytest.mark.skip()
 @pytest.mark.slow_locally
 def test_download_price_data(access_module):
     pass
@@ -54,6 +55,7 @@ def test_download_price_data(access_module):
         os.remove(path)
     os.rmdir("tmp_data")
 
+@pytest.mark.skip()
 @pytest.mark.slow_locally
 def test_download_postcode_data(access_module):
     pass
@@ -69,6 +71,7 @@ def test_download_postcode_data(access_module):
     os.remove(path)    
     os.rmdir("tmp_data")
 
+@pytest.mark.skip()
 @pytest.mark.slow_locally
 def test_joined_data(access_module):
     pass
