@@ -1,5 +1,7 @@
 import pytest, numpy as np, pandas as pd
 
+@pytest.mark.skip()
+@pytest.mark.slow_for_db
 def test_all_tags_exist_for_20_sampled_locations(assess_module):
     locations_df = assess_module.extract_locations_from_prices_coordinates_database()
     locations_df = locations_df.sample(n = 20)

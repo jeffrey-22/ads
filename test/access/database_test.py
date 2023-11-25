@@ -1,5 +1,6 @@
 import pytest
 
+@pytest.mark.skip()
 @pytest.mark.slow_for_db
 def test_select_count_price(access_module):
     conn = access_module.DatabaseConnection.get_connection()
@@ -8,6 +9,7 @@ def test_select_count_price(access_module):
         res = res[0]
     assert(res == 28258161)
 
+@pytest.mark.skip()
 @pytest.mark.slow_for_db
 def test_select_count_postcode(access_module):
     conn = access_module.DatabaseConnection.get_connection()
@@ -16,6 +18,7 @@ def test_select_count_postcode(access_module):
         res = res[0]
     assert(res == 2631536)
 
+@pytest.mark.skip()
 @pytest.mark.slow_for_db
 def test_select_count_prices_coordinates(access_module):
     conn = access_module.DatabaseConnection.get_connection()

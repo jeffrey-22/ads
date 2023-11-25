@@ -50,11 +50,22 @@ class PricesCoordinatesData:
         if PricesCoordinatesData._data is None:
             PricesCoordinatesData._data = PricesCoordinatesData.fetch_data()
         return PricesCoordinatesData._data.copy()
+    
+    @staticmethod
+    def get_sample_limit():
+        if PricesCoordinatesData.prices_coordinates_data_sample_limit is None:
+            PricesCoordinatesData.prices_coordinates_data_sample_limit = PricesCoordinatesData.fetch_sample_limit()
+        return PricesCoordinatesData.prices_coordinates_data_sample_limit
 
 def prices_coordinates_database_content_check():
+    full_size = 28210620
+    current_size = PricesCoordinatesData.get_sample_limit()
+    if (current_size < full_size):
+        PricesCoordinatesData.reset_data_with_new_sample_limit(full_size)
     df = PricesCoordinatesData.get_data()
+    PricesCoordinatesData.reset_data_with_new_sample_limit(current_size)
     ok = True
-    ok &= len(df) > 1000
+    ok &= len(df) == full_size
     ok &= not df.isnull().values.any()
     ok &= df['price'].min() > 0
     ok &= df['price'].max() < 10000000000
