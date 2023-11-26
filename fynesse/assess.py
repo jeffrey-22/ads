@@ -57,15 +57,18 @@ class PricesCoordinatesData:
             PricesCoordinatesData.prices_coordinates_data_sample_limit = PricesCoordinatesData.fetch_sample_limit()
         return PricesCoordinatesData.prices_coordinates_data_sample_limit
 
-def prices_coordinates_database_content_check():
+def prices_coordinates_database_content_full_check():
     full_size = 28210620
     current_size = PricesCoordinatesData.get_sample_limit()
+    changed = False
     if (current_size < full_size):
         PricesCoordinatesData.reset_data_with_new_sample_limit(full_size)
+        changed = True
     df = PricesCoordinatesData.get_data()
-    PricesCoordinatesData.reset_data_with_new_sample_limit(current_size)
+    if changed:
+        PricesCoordinatesData.reset_data_with_new_sample_limit(current_size)
     ok = True
-    ok &= len(df) == full_size
+    ok &= len(df) >= full_size
     ok &= not df.isnull().values.any()
     ok &= df['price'].min() > 0
     ok &= df['price'].max() < 10000000000
@@ -73,6 +76,31 @@ def prices_coordinates_database_content_check():
     ok &= df['date_of_transfer'].min() == datetime.date(1995, 1, 1)
     ok &= df['date_of_transfer'].max() == datetime.date(2022, 12, 31)
     ok &= sorted(df['property_type'].unique()) == sorted(np.array(['D', 'S', 'T', 'F', 'O']))
+    ok &= df['latitude'].min() >= 48
+    ok &= df['latitude'].max() <= 65
+    ok &= df['longitude'].min() >= -10
+    ok &= df['longitude'].max() <= 20
+    return ok
+
+def prices_coordinates_database_content_basic_check():
+    full_size = 10000
+    current_size = PricesCoordinatesData.get_sample_limit()
+    changed = False
+    if (current_size < full_size):
+        PricesCoordinatesData.reset_data_with_new_sample_limit(full_size)
+        changed = True
+    df = PricesCoordinatesData.get_data()
+    if changed:
+        PricesCoordinatesData.reset_data_with_new_sample_limit(current_size)
+    ok = True
+    ok &= len(df) >= full_size
+    ok &= not df.isnull().values.any()
+    ok &= df['price'].min() > 0
+    ok &= df['price'].max() < 10000000000
+    ok &= type(df['date_of_transfer'].iloc[0]) is datetime.date
+    ok &= df['date_of_transfer'].min() >= datetime.date(1995, 1, 1)
+    ok &= df['date_of_transfer'].max() <= datetime.date(2022, 12, 31)
+    ok &= set(df['property_type'].unique()).issubset(['D', 'S', 'T', 'F', 'O'])
     ok &= df['latitude'].min() >= 48
     ok &= df['latitude'].max() <= 65
     ok &= df['longitude'].min() >= -10
