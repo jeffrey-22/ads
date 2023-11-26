@@ -1,6 +1,5 @@
 import pytest, numpy as np, pandas as pd
 
-@pytest.mark.skip()
 @pytest.mark.slow_for_db
 def test_all_tags_exist_for_20_sampled_locations(assess_module):
     locations_df = assess_module.extract_locations_from_prices_coordinates_database()
@@ -13,7 +12,6 @@ def test_all_tags_exist_for_20_sampled_locations(assess_module):
         assert(dis_list.min() >= 0), f"dis min < 0 for lat={lat}, lon={lon}"
         assert(dis_list.max() <= 5), f"dis max > 5 for lat={lat}, lon={lon}"
 
-@pytest.mark.skip()
 @pytest.mark.slow_for_db
 def test_all_tags_exist_for_500_sampled_locations(assess_module):
     locations_df = assess_module.extract_locations_from_prices_coordinates_database()

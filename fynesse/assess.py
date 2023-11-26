@@ -173,8 +173,8 @@ def column_name_of_tag(tag):
         return k
 
 def find_bounding_box_for_price_data(price_data):
-    assert set(price_data.columns).issubset(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude']), \
-        'cannot find all price data columns'
+    assert set((['latitude', 'longitude'])).issubset(set(price_data.columns)), \
+        'cannot find location columns'
     bounding_box = {}
     bounding_box["south"] = price_data['latitude'].min()
     bounding_box["north"] = price_data['latitude'].max()
@@ -270,7 +270,7 @@ def plot_general_house_distribution(price_data):
     pass
 
 def encode_pure_price_data(price_data):
-    assert set(price_data.columns).issubset(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude'])
+    assert set(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude']).issubset(set(price_data.columns))
     price_data = price_data.copy()
     price_data = one_hot_encode_column(price_data, 'property_type')
     price_data = date_to_days_encode_column(price_data, 'date_of_transfer')

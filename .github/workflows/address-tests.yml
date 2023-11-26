@@ -42,7 +42,7 @@ jobs:
           verbose: true
           emoji: false
           job-summary: true
-          custom-arguments: test/address '-q'
+          custom-arguments: test/address '-q' -m "not (slow_for_db or slow_locally)"
           click-to-expand: true
           report-title: 'Address Test Report'
 
