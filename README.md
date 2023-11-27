@@ -4,14 +4,6 @@ For the fynesse template and the final report notebook.
 
 ## TODO:
 
-- assess: general visualisation
-- address: summarise decisions and reasonings
-- address: feature transform
-- address: validation PCA
-- address: cross-validation
-- address: predict examples
-- address: tests
-- address: llm documentation
 - notebook transferring
 - code documentation
 - general documentation

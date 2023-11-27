@@ -4,9 +4,10 @@ from . import access
 
 import osmnx as ox, pandas as pd, numpy as np
 from datetime import datetime
-import datetime
+import datetime, geopandas, shapely
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+import seaborn as sns
 
 default_tag_list = [{"amenity": 'school'},
                     {"amenity": 'hospital'},
@@ -27,6 +28,7 @@ class PricesCoordinatesData:
     @staticmethod
     def fetch_data():
         conn = access.DatabaseConnection.get_connection()
+        # TODO: Make this sample RANDOM
         query = f'SELECT price, date_of_transfer, property_type,\
                     latitude, longitude FROM prices_coordinates_data'
         if PricesCoordinatesData.prices_coordinates_data_sample_limit is None:
@@ -115,10 +117,10 @@ def extract_locations_from_prices_coordinates_database(df = PricesCoordinatesDat
 def get_pois_from_bbox(tag_list, bounding_box):
     try:
         pois = ox.features_from_bbox(north=bounding_box['north'], 
-                                        south=bounding_box['south'], 
-                                        west=bounding_box['west'], 
-                                        east=bounding_box['east'],
-                                        tags=tag_list)
+                                     south=bounding_box['south'], 
+                                     west=bounding_box['west'], 
+                                     east=bounding_box['east'],
+                                     tags=tag_list)
         return (len(pois), pois)
     except:
         return (0, ())
@@ -247,8 +249,12 @@ def prepare_full_price_data_within_bbox_and_date_range(bounding_box, date_range,
                                                                                          axis=1)
     return price_data, pois_list
 
-def one_hot_encode_column(df, column_name):
+def one_hot_encode_column(df, column_name, possible_values = None):
     one_hot_encoded_df = pd.get_dummies(df[column_name])
+    if (not (possible_values is None) and len(one_hot_encoded_df.columns) < len(possible_values)):
+        for value in possible_values:
+            if value not in one_hot_encoded_df.columns:
+                one_hot_encoded_df[value] = False
     one_hot_encoded_df.columns = [column_name + "_" + val for val in one_hot_encoded_df.columns]
     df = df.drop(column_name, axis=1)
     df = pd.concat([df, one_hot_encoded_df], axis=1)
@@ -267,7 +273,14 @@ def date_to_days_encode_column(df, column_name):
     df[column_name] = data
     return df
 
-def general_PCA_plot(df):
+def encode_pure_price_data(price_data = PricesCoordinatesData.get_data()):
+    assert set(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude']).issubset(set(price_data.columns))
+    price_data = price_data.copy()
+    price_data = one_hot_encode_column(price_data, 'property_type', ['D', 'S', 'T', 'F', 'O'])
+    price_data = date_to_days_encode_column(price_data, 'date_of_transfer')
+    return price_data
+
+def general_PCA_plot(df = encode_pure_price_data()):
     df_standardized = (df - df.mean()) / df.std()
     assert df.notnull().all().all()
     pca = PCA(n_components=2)
@@ -279,7 +292,7 @@ def general_PCA_plot(df):
     plt.ylabel('Principal Component 2')
     plt.show()
 
-def general_PCA_plot_with_one_column_colorcoded(df, colorcoded_column_name = 'price'):
+def general_PCA_plot_with_one_column_colorcoded(df = encode_pure_price_data(), colorcoded_column_name = 'price'):
     assert df.notnull().all().all()
     assert colorcoded_column_name in df.columns
     columns_for_PCA = df.columns.difference([colorcoded_column_name])
@@ -294,12 +307,73 @@ def general_PCA_plot_with_one_column_colorcoded(df, colorcoded_column_name = 'pr
     plt.colorbar(label=colorcoded_column_name)
     plt.show()
 
-def plot_general_house_distribution(price_data):
-    pass
+def get_entire_gdf():
+    return ox.geocoder.geocode_to_gdf("United Kingdom")
 
-def encode_pure_price_data(price_data):
-    assert set(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude']).issubset(set(price_data.columns))
-    price_data = price_data.copy()
-    price_data = one_hot_encode_column(price_data, 'property_type')
-    price_data = date_to_days_encode_column(price_data, 'date_of_transfer')
-    return price_data
+def get_basemap_from_bbox(bounding_box):
+    try:
+        return ox.graph_from_bbox(north=bounding_box['north'], 
+                                  south=bounding_box['south'], 
+                                  west=bounding_box['west'], 
+                                  east=bounding_box['east'])
+    except:
+        print(f"Error from getting graph from bbox {bounding_box}!")
+
+def bounding_box_to_geometry(bounding_box):
+    minx = bounding_box["west"]
+    maxx = bounding_box["east"]
+    miny = bounding_box["south"]
+    maxy = bounding_box["north"]
+    return geopandas.GeoDataFrame(geometry=[shapely.geometry.Polygon([(minx, miny), (minx, maxy), (maxx, maxy), (maxx, miny)])])
+
+def plot_general_house_distribution(price_data = PricesCoordinatesData.get_data()):
+    gdf = get_entire_gdf()
+    fig, ax = plt.subplots(figsize=(10, 10))
+    gdf.plot(ax=ax, color=(0.95, 0.96, 0.95), edgecolor='black', alpha=0.7)
+    housing_gdf = geopandas.GeoDataFrame(
+        geometry=geopandas.points_from_xy(price_data['longitude'], price_data['latitude'])
+    )
+    housing_gdf.plot(ax=ax, color='red', marker='o', alpha=0.7, markersize=0.3)
+    ax.set_aspect('equal', adjustable='datalim')
+    bbox = find_bounding_box_for_price_data(price_data)
+    bbox = pad_bounding_box(bbox, 0.01)
+    plt.xlim((bbox["west"], bbox["east"]))
+    plt.ylim((bbox["south"], bbox["north"]))
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
+    plt.title('House Distribution From Sampled Data')
+    plt.show()
+
+def plot_general_house_density_heatmap(price_data = PricesCoordinatesData.get_data()):
+    bbox = find_bounding_box_for_price_data(price_data)
+    bbox = pad_bounding_box(bbox, 0.01)
+    bbox_gdf = bounding_box_to_geometry(bbox)
+    fig_width = 10
+    fig_height = fig_width / ((bbox["east"] - bbox["west"]) / (bbox["north"] - bbox["south"]))
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    gdf = get_entire_gdf()
+    ax = sns.kdeplot(data=price_data, x='longitude', y='latitude', fill=True, cmap='Reds', thresh=0, levels=100)
+    cbar = ax.figure.colorbar(ax.collections[0])
+    cbar.set_label('Density level')
+    inverse_mask = geopandas.overlay(bbox_gdf, gdf, how='difference')
+    inverse_mask.plot(ax=ax, facecolor='blue')
+    ax.set_aspect('equal', adjustable='datalim')
+    plt.title('Density Heatmap of Sampled Data with Density Colorbar')
+    print(bbox)
+    plt.xlim((bbox["west"], bbox["east"]))
+    plt.ylim((bbox["south"], bbox["north"]))
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
+    plt.show()
+
+def plot_average_house_price_against_year(price_data = PricesCoordinatesData.get_data()):
+    price_data['year'] = price_data['date_of_transfer'].apply(lambda x: x.year)
+    average_prices = price_data.groupby('year')['price'].mean()
+    plt.figure(figsize=(10, 6))
+    average_prices.plot(marker='o', linestyle='-', color='b')
+    plt.title('Average Price of Sampled Data per Year')
+    plt.xlabel('Year')
+    plt.ylabel('Average Price')
+    plt.xlim([1995, 2021])
+    plt.grid(True)
+    plt.show()

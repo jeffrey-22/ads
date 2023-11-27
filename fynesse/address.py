@@ -7,6 +7,13 @@ import statsmodels.api as sm
 from datetime import datetime, timedelta
 from datetime import date as date_class
 from datetime import datetime as datetime_class
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import r2_score
+import matplotlib.pyplot as plt
+import mlai.plot as plot
+import osmnx as ox
+
+model_link_function = sm.families.Gaussian(sm.genmod.families.links.Identity())
 
 def generate_suitable_bbox(latitude, longitude, default_bbox_size = 0.05):
     status_code = 0
@@ -46,29 +53,18 @@ def generate_suitable_date_range(pred_date, tolerable_days_exceeding_the_bounds 
     return status_code, date_range
 
 def process_feature_array_into_design_matrix(feature_array):
-    feature_array = feature_array.values
+    feature_array = feature_array.copy()
+    feature_array = assess.one_hot_encode_column(feature_array, 'property_type', ['D', 'S', 'T', 'F', 'O'])
+    feature_array = assess.date_to_days_encode_column(feature_array, 'date_of_transfer')
+    feature_array = feature_array.drop('latitude', axis=1)
+    feature_array = feature_array.drop('longitude', axis=1)
 
-    design_matrix = np.ones((feature_array.shape[0], 1))
-    for column_index in range(feature_array.shape[1]):
-        column_array = feature_array[:, column_index]
-        if (type(column_array[0]) is str):
-            unique_values = np.unique(column_array)
-            for value in unique_values:
-                new_column = np.where(column_array == value, 1, 0)
-                design_matrix = np.column_stack((design_matrix, new_column))
-        elif isinstance(column_array[0], date_class):
-            design_matrix = np.column_stack((design_matrix, np.array([d.days for d in column_array - date_class(1995, 1, 1)])))
-        elif (type(column_array[0]) is float):
-            design_matrix = np.column_stack((design_matrix, column_array))
-        else:
-            raise TypeError
-    design_matrix = np.asarray(design_matrix, dtype=np.float64)
+    design_matrix = np.asarray(feature_array.values, dtype=np.float64)
+    design_matrix = sm.add_constant(design_matrix, has_constant = 'add')
 
     return design_matrix
 
-def prepare_feature_array_and_target_array(price_data, pois_list, latitude, longitude, date, property_type):
-    target_array = price_data['price'].values
-    feature_array = price_data.drop('price', axis=1)
+def prepare_feature_array_for_unseen_data(pois_list, latitude, longitude, date, property_type):
     current_features = {
         'date_of_transfer': date, 
         'property_type': property_type, 
@@ -77,11 +73,36 @@ def prepare_feature_array_and_target_array(price_data, pois_list, latitude, long
     }
     for (k, v) in pois_list:
         col_name = assess.column_name_of_tag((k, v))
-        current_features[col_name] = assess.extract_closest_euclidean_dist_from_pois(pois_list, (k, v), latitude, longitude)
+        current_features[col_name] = np.sqrt(\
+            assess.extract_closest_euclidean_dist_from_pois(pois_list, (k, v), latitude, longitude))
+    return current_features
+
+def prepare_feature_array_and_target_array(price_data, pois_list, latitude, longitude, date, property_type):
+    target_array = price_data['price'].values
+    feature_array = price_data.drop('price', axis=1)
+    current_features = prepare_feature_array_for_unseen_data(pois_list, latitude, longitude, date, property_type)
     feature_array = pd.concat([feature_array, pd.DataFrame([current_features])], ignore_index=True)
     return feature_array, target_array
 
-def validate_model(validation_level, result, model, feature_array, design_matrix, target_array, warning):
+def prepare_feature_array_for_changing_locations(pois_list, latitude_list, longitude_list, date, property_type):
+    size = len(latitude_list)
+    assert size == len(longitude_list)
+    current_features = {
+        'date_of_transfer': np.full(size, date), 
+        'property_type': np.full(size, property_type), 
+        'latitude': latitude_list, 
+        'longitude':longitude_list,
+    }
+    feature_array = pd.DataFrame.from_dict(current_features)
+    for i in range(size):
+        for (k, v) in pois_list:
+            col_name = assess.column_name_of_tag((k, v))
+            feature_array.at[i, col_name] = np.sqrt(\
+                assess.extract_closest_euclidean_dist_from_pois(pois_list, (k, v), latitude_list[i], longitude_list[i]))
+    return feature_array
+
+def validate_model(validation_level, result, model, feature_array, design_matrix, target_array, warning, pois_list,\
+                   example_plot_bbox_size = 0.04, default_bbox_size = 0.05):
     if validation_level >= 0:
         print(f"==== Validation of current model, level {validation_level} ====")
     if validation_level >= 1:
@@ -99,24 +120,77 @@ Level | Message
   3   | Help message
   4   | PCA of feature array
   5   | Stratified Cross-Validation on training dataset
+  6   | Area Prediction Plot
               """)
     if validation_level >= 2:
         print(result.summary())
     if validation_level >= 4:
-        # PCA
-        pass
+        encoded_feature_array = feature_array.copy()
+        encoded_feature_array = assess.one_hot_encode_column(encoded_feature_array, 'property_type', ['D', 'S', 'T', 'F', 'O'])
+        encoded_feature_array = assess.date_to_days_encode_column(encoded_feature_array, 'date_of_transfer')
+        encoded_feature_array = encoded_feature_array.drop('latitude', axis=1)
+        encoded_feature_array = encoded_feature_array.drop('longitude', axis=1)
+        encoded_feature_array = encoded_feature_array.iloc[:-1]
+        encoded_feature_array['price'] = target_array
+        assess.general_PCA_plot_with_one_column_colorcoded(encoded_feature_array)
     if validation_level >= 5:
-        # CV
-        pass
+        stratified_kfold = StratifiedKFold(n_splits=5, shuffle=True)
+        X = design_matrix
+        y = target_array
+        test_result = []
+        pred_result = []
+        for train_index, test_index in stratified_kfold.split(X, y):
+            X_train, X_test = X[train_index], X[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+            model = sm.GLM(y_train, X_train, \
+                           family=model_link_function)
+            result = model.fit()
+            optimal_params = result.params
+            y_pred = model.predict(optimal_params, X_test)
+            test_result = np.concatenate((test_result, y_test))
+            pred_result = np.concatenate((pred_result, y_pred))
+        r2 = r2_score(test_result, pred_result)
+        print(f'Stratified Cross-Validation on 5 folds result R^2: {r2}')
+    if validation_level >= 6:
+        assert example_plot_bbox_size <= default_bbox_size
+        date = feature_array.iloc[-1]['date_of_transfer']
+        property_type = feature_array.iloc[-1]['property_type']
+        latitude = feature_array.iloc[-1]['latitude']
+        longitude = feature_array.iloc[-1]['longitude']
+        bbox = assess.generate_bbox(latitude, longitude, example_plot_bbox_size, example_plot_bbox_size)
+        sample_frequency = 20
+        x_vals = np.linspace(bbox["west"], bbox["east"], sample_frequency)
+        y_vals = np.linspace(bbox["south"], bbox["north"], sample_frequency)
+        x_grid, y_grid = np.meshgrid(x_vals, y_vals)
+        example_feature_array = prepare_feature_array_for_changing_locations(pois_list, y_grid.flatten(), x_grid.flatten(),\
+                                                                             date, property_type)
+        example_design_matrix = process_feature_array_into_design_matrix(example_feature_array)
+        optimal_params = result.params
+        example_target_array = model.predict(optimal_params, example_design_matrix)
+        graph = ox.graph_from_bbox(bbox["north"], bbox["south"], bbox["east"], bbox["west"])
+        nodes, edges = ox.graph_to_gdfs(graph)
+        fig, ax = plt.subplots(figsize=plot.big_figsize)
+        edges.plot(ax=ax, linewidth=1, edgecolor="dimgray")
+        ax.set_xlim([bbox["west"], bbox["east"]])
+        ax.set_ylim([bbox["south"], bbox["north"]])
+        plt.xlabel('Longitude')
+        plt.ylabel('Latitude')
+        plt.tight_layout()
+
+
+        plt.contourf(x_grid, y_grid, np.reshape(example_target_array, x_grid.shape), cmap='viridis')
+        plt.colorbar(label=f'Price')
+        plt.title(f'Price prediction around the given area for {date} {property_type}')
     if validation_level >= 0:
         print(f"==== End of Validation ====")
 
 def predict_price(latitude, longitude, date, property_type, pp_database_conn = access.DatabaseConnection.get_connection(),\
-                  validation_level = 2, default_bbox_size = 0.04, tolerable_days_exceeding_the_bounds = 500,\
-                  default_range_size = 400,\
+                  validation_level = 2, default_bbox_size = 0.05, tolerable_days_exceeding_the_bounds = 300,\
+                  default_range_size = 800,\
                   ):
     """
     Usage: TODO
+    Takes ~5 minutes to complete prediction
     """
     if isinstance(date, datetime_class):
         date = date.date()
@@ -135,15 +209,12 @@ def predict_price(latitude, longitude, date, property_type, pp_database_conn = a
     training_design_matrix = design_matrix[:-1]
     predicting_design_matrix = np.array(design_matrix[-1])
     predict_model = sm.GLM(target_array, training_design_matrix, \
-                           family=sm.families.Gaussian(sm.genmod.families.links.Identity()))
+                           family=model_link_function)
     result = predict_model.fit()
     optimal_params = result.params
     predict_result = predict_model.predict(optimal_params, predicting_design_matrix)
 
-    validate_model(validation_level, result, predict_model, feature_array, training_design_matrix, target_array, warning)
+    validate_model(validation_level, result, predict_model, feature_array, training_design_matrix, target_array, warning,\
+                   pois_list, default_bbox_size)
 
     return predict_result
-
-# plan: plot a heat map corresponding to the price in cambridge
-def prediction_examples():
-    pass
