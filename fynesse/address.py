@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import mlai.plot as plot
 import osmnx as ox
 
-model_link_function = sm.families.Gaussian(sm.genmod.families.links.Identity())
+model_link_function = sm.families.Poisson(sm.genmod.families.links.Log())
 
 def generate_suitable_bbox(latitude, longitude, default_bbox_size = 0.05):
     status_code = 0
@@ -56,6 +56,8 @@ def process_feature_array_into_design_matrix(feature_array):
     feature_array = feature_array.copy()
     feature_array = assess.one_hot_encode_column(feature_array, 'property_type', ['D', 'S', 'T', 'F', 'O'])
     feature_array = assess.date_to_days_encode_column(feature_array, 'date_of_transfer')
+    for col_name in assess.default_tag_col_list:
+        feature_array = assess.square_root_column(feature_array, assess.column_name_of_tag(col_name))
     feature_array = feature_array.drop('latitude', axis=1)
     feature_array = feature_array.drop('longitude', axis=1)
 
@@ -64,17 +66,18 @@ def process_feature_array_into_design_matrix(feature_array):
 
     return design_matrix
 
-def prepare_feature_array_for_unseen_data(pois_list, latitude, longitude, date, property_type):
+def prepare_feature_array_for_unseen_data(pois_list, latitude, longitude, date, property_type,\
+                                          tag_list = assess.default_tag_col_list):
     current_features = {
         'date_of_transfer': date, 
         'property_type': property_type, 
         'latitude': latitude, 
         'longitude':longitude,
     }
-    for (k, v) in pois_list:
+    for (k, v) in tag_list:
         col_name = assess.column_name_of_tag((k, v))
-        current_features[col_name] = np.sqrt(\
-            assess.extract_closest_euclidean_dist_from_pois(pois_list, (k, v), latitude, longitude))
+        distance_array = assess.extract_closest_euclidean_dist_from_pois(pois_list, (k, v), latitude, longitude)
+        current_features[col_name] = np.where(distance_array >= 0, np.sqrt(distance_array), distance_array)
     return current_features
 
 def prepare_feature_array_and_target_array(price_data, pois_list, latitude, longitude, date, property_type):
@@ -84,7 +87,8 @@ def prepare_feature_array_and_target_array(price_data, pois_list, latitude, long
     feature_array = pd.concat([feature_array, pd.DataFrame([current_features])], ignore_index=True)
     return feature_array, target_array
 
-def prepare_feature_array_for_changing_locations(pois_list, latitude_list, longitude_list, date, property_type):
+def prepare_feature_array_for_changing_locations(pois_list, latitude_list, longitude_list, date, property_type,\
+                                                 tag_list = assess.default_tag_col_list):
     size = len(latitude_list)
     assert size == len(longitude_list)
     current_features = {
@@ -95,10 +99,11 @@ def prepare_feature_array_for_changing_locations(pois_list, latitude_list, longi
     }
     feature_array = pd.DataFrame.from_dict(current_features)
     for i in range(size):
-        for (k, v) in pois_list:
+        for (k, v) in tag_list:
             col_name = assess.column_name_of_tag((k, v))
-            feature_array.at[i, col_name] = np.sqrt(\
-                assess.extract_closest_euclidean_dist_from_pois(pois_list, (k, v), latitude_list[i], longitude_list[i]))
+            distance_array =\
+                assess.extract_closest_euclidean_dist_from_pois(pois_list, (k, v), latitude_list[i], longitude_list[i])
+            feature_array.at[i, col_name] = np.where(distance_array >= 0, np.sqrt(distance_array), distance_array)
     return feature_array
 
 def validate_model(validation_level, result, model, feature_array, design_matrix, target_array, warning, pois_list,\
@@ -125,12 +130,8 @@ Level | Message
     if validation_level >= 2:
         print(result.summary())
     if validation_level >= 4:
-        encoded_feature_array = feature_array.copy()
-        encoded_feature_array = assess.one_hot_encode_column(encoded_feature_array, 'property_type', ['D', 'S', 'T', 'F', 'O'])
-        encoded_feature_array = assess.date_to_days_encode_column(encoded_feature_array, 'date_of_transfer')
-        encoded_feature_array = encoded_feature_array.drop('latitude', axis=1)
-        encoded_feature_array = encoded_feature_array.drop('longitude', axis=1)
-        encoded_feature_array = encoded_feature_array.iloc[:-1]
+        encoded_feature_array = design_matrix.copy()
+        encoded_feature_array = pd.DataFrame(encoded_feature_array)
         encoded_feature_array['price'] = target_array
         assess.general_PCA_plot_with_one_column_colorcoded(encoded_feature_array)
     if validation_level >= 5:

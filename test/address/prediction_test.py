@@ -8,7 +8,6 @@ def test_simple_runnable(address_module):
 def test_feature_gen_small_example(address_module):
     pois_list = {("amenity", 'school'): pd.DataFrame.from_dict({'geometry': [shapely.geometry.Point(1, 0)]}),
                  ("amenity", 'hospital'): pd.DataFrame.from_dict({'geometry': [shapely.geometry.Point(1, 0)]}),
-                 ("amenity", 'library'): pd.DataFrame.from_dict({'geometry': [shapely.geometry.Point(1, 0)]}),
                  ("amenity", 'restaurant'): pd.DataFrame.from_dict({'geometry': [shapely.geometry.Point(1, 0)]}),
                  ("public_transport", True): pd.DataFrame.from_dict({'geometry': [shapely.geometry.Point(1, 0)]}),
                  ("shop", True): pd.DataFrame.from_dict({'geometry': [shapely.geometry.Point(1, 0), shapely.geometry.Point(2, 2)]}),
@@ -26,7 +25,7 @@ def test_feature_gen_small_example(address_module):
         'property_type': ['O'],
         'amenity_school': math.sqrt(10),
         'amenity_hospital': math.sqrt(10),
-        'amenity_library': math.sqrt(10),
+        'amenity_library': -1,
         'amenity_restaurant': math.sqrt(10),
         'public_transport': math.sqrt(10),
         'shop': math.sqrt(5),
@@ -46,3 +45,4 @@ def test_feature_gen_small_example(address_module):
                 f"expected {expected_feature_array.iloc[i][col]} get {feature_array.iloc[i][col]}"
     design_matrix = address_module.process_feature_array_into_design_matrix(feature_array)
     assert(design_matrix.shape == (1, 14))
+    assert not np.isnan(design_matrix).any()

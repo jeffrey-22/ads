@@ -17,6 +17,8 @@ default_tag_list = [{"amenity": 'school'},
                     {"shop": True},
                     {"leisure": True}]
 
+default_tag_col_list = [list(d.items())[0] for d in default_tag_list]
+
 class PricesCoordinatesData:
     _data = None
     prices_coordinates_data_sample_limit = None
@@ -273,6 +275,11 @@ def date_to_days_encode_column(df, column_name):
     df[column_name] = data
     return df
 
+def square_root_column(df, column_name):
+    arr = np.array(df[column_name]).astype(float)
+    df[column_name] = np.where(arr >= 0, np.sqrt(arr), arr)
+    return df
+
 def encode_pure_price_data(price_data = PricesCoordinatesData.get_data()):
     assert set(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude']).issubset(set(price_data.columns))
     price_data = price_data.copy()
@@ -296,7 +303,9 @@ def general_PCA_plot_with_one_column_colorcoded(df = encode_pure_price_data(), c
     assert df.notnull().all().all()
     assert colorcoded_column_name in df.columns
     columns_for_PCA = df.columns.difference([colorcoded_column_name])
-    df_standardized = (df[columns_for_PCA] - df[columns_for_PCA].mean()) / df[columns_for_PCA].std()
+    std_values = df[columns_for_PCA].std()
+    std_values[std_values == 0] = 1
+    df_standardized = (df[columns_for_PCA] - df[columns_for_PCA].mean()) / std_values
     pca = PCA(n_components=2)
     principal_components = pca.fit_transform(df_standardized)
     pc_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
