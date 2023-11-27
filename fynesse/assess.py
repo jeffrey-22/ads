@@ -30,15 +30,30 @@ class PricesCoordinatesData:
     @staticmethod
     def fetch_data():
         conn = access.DatabaseConnection.get_connection()
-        # TODO: Make this sample RANDOM
-        query = f'SELECT price, date_of_transfer, property_type,\
-                    latitude, longitude FROM prices_coordinates_data'
         if PricesCoordinatesData.prices_coordinates_data_sample_limit is None:
             PricesCoordinatesData.prices_coordinates_data_sample_limit = PricesCoordinatesData.fetch_sample_limit()
             assert(PricesCoordinatesData.prices_coordinates_data_sample_limit >= 0)
             assert(PricesCoordinatesData.prices_coordinates_data_sample_limit <= 28210620)
-            query += f" LIMIT {PricesCoordinatesData.prices_coordinates_data_sample_limit};"
-        return pd.read_sql_query(query, conn)
+        if (PricesCoordinatesData.prices_coordinates_data_sample_limit <= 10000000):
+            # https://mariadb.com/kb/en/data-sampling-techniques-for-efficiently-finding-a-random-row/
+            query =\
+            """
+                SELECT DISTINCT price, date_of_transfer, property_type, latitude, longitude, db_id
+                    FROM prices_coordinates_data AS a
+                    JOIN (
+                        SELECT FLOOR(1 + (28210620 - 1 + 1) * RAND()) AS db_id
+                            FROM prices_coordinates_data
+                            LIMIT _total_rows_selected_
+                        ) b USING (db_id)
+                    LIMIT _total_rows_needed_;
+            """
+            query = query.replace("_total_rows_needed_", str(PricesCoordinatesData.prices_coordinates_data_sample_limit))
+            query = query.replace("_total_rows_selected_", str((PricesCoordinatesData.prices_coordinates_data_sample_limit * 2)))
+        else:
+            query = 'SELECT price, date_of_transfer, property_type,\
+                    latitude, longitude FROM prices_coordinates_data '
+            query += f'LIMIT {PricesCoordinatesData.prices_coordinates_data_sample_limit}'
+        return pd.read_sql_query(query, conn).drop('db_id', axis=1, errors='ignore')
 
     @staticmethod
     def reset_data_with_new_sample_limit(new_sample_limit):
