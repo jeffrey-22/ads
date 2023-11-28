@@ -13,7 +13,17 @@ import matplotlib.pyplot as plt
 import mlai.plot as plot
 import osmnx as ox
 
-model_link_function = sm.families.Poisson(sm.genmod.families.links.Log())
+"""
+Step 3 of the pipeline - Data addressing.
+In this module I refer to packed dataframes containing data about each house as feature arrays.
+The feature arrays are then properly encoded and tranformed into design matrix as a pure number form of the data.
+The design matrix and the target array (the prices) are used to train the model.
+The transformations should be as flexible as possible to overcome corner cases, for example when a feature doesn't exist.
+Note that I am following the advice here - the data are selected from a range on the fly, and are then subsequently used
+to train and validate the model.
+"""
+
+model_link_function = sm.families.Gaussian(sm.genmod.families.links.Identity())
 
 def generate_suitable_bbox(latitude, longitude, default_bbox_size = 0.05):
     status_code = 0
@@ -54,7 +64,7 @@ def generate_suitable_date_range(pred_date, tolerable_days_exceeding_the_bounds 
 
 def process_feature_array_into_design_matrix(feature_array):
     feature_array = feature_array.copy()
-    feature_array = assess.one_hot_encode_column(feature_array, 'property_type', ['D', 'S', 'T', 'F', 'O'])
+    feature_array = assess.one_hot_encode_column(feature_array, 'property_type', assess.property_type_values)
     feature_array = assess.date_to_days_encode_column(feature_array, 'date_of_transfer')
     for col_name in assess.default_tag_col_list:
         feature_array = assess.square_root_column(feature_array, assess.column_name_of_tag(col_name))
@@ -187,11 +197,30 @@ Level | Message
 
 def predict_price(latitude, longitude, date, property_type, pp_database_conn = access.DatabaseConnection.get_connection(),\
                   validation_level = 2, default_bbox_size = 0.05, tolerable_days_exceeding_the_bounds = 300,\
-                  default_range_size = 800,\
+                  default_range_size = 800, example_plot_bbox_size = 0.04, pois_active = True\
                   ):
     """
-    Usage: TODO
+    Usage: 
+
+    Put in the latitude, longitude(should be in UK), date(an instance of datime.date), property_type('D', 'S', 'T', 'F', 'O')
+
+    Returns a single value: prediction price in GBP.
+
+    Optionally, put in a validation_level for some validations(see help message at level=3)
+
+    default_bbox_size defines the data range we will be using as the training set
+
+    default_range_size defines the date range size
+
+    tolerable_days_exceeding_the_bounds defines how much days the user could go over or below without a warning
+
+    example_plot_bbox_size defines the area plot in validation level 6
+
+    pois_active defines whether to use pois data
+
     Takes ~5 minutes to complete prediction
+    
+    Example: predict_price(52.206767, 0.119229, date(2021, 1, 1), 'S', validation_level=6)
     """
     if isinstance(date, datetime_class):
         date = date.date()
@@ -202,7 +231,8 @@ def predict_price(latitude, longitude, date, property_type, pp_database_conn = a
     price_data, pois_list = \
         assess.prepare_full_price_data_within_bbox_and_date_range(training_bbox, \
                                                                   training_date_range, \
-                                                                  conn=pp_database_conn)
+                                                                  conn=pp_database_conn,\
+                                                                  active=pois_active)
     assert len(price_data) > 0, f"Found no available data within default_bbox_size = {default_bbox_size}, try increase the size"
     warning |= len(price_data) < 100
     feature_array, target_array = prepare_feature_array_and_target_array(price_data, pois_list, \
@@ -218,6 +248,6 @@ def predict_price(latitude, longitude, date, property_type, pp_database_conn = a
     predict_result = predict_model.predict(optimal_params, predicting_design_matrix)
 
     validate_model(validation_level, result, predict_model, feature_array, training_design_matrix, target_array, warning,\
-                   pois_list, default_bbox_size)
+                   pois_list, example_plot_bbox_size, default_bbox_size)
 
     return predict_result

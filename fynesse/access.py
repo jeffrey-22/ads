@@ -3,9 +3,12 @@ from .config import *
 import yaml, os, wget, requests, pymysql, zipfile
 import dask.dataframe as dd
 
-# This file accesses the data
-
-"""Place commands in this file to access the data electronically. Don't remove any missing values, or deal with outliers. Make sure you have legalities correct, both intellectual property and personal data privacy rights. Beyond the legal side also think about the ethical issues around this data. """
+"""
+Step 1 of the pipeline - Data accessing, mostly with downloading csv data and populating the database.
+Legal issues are addressed in README as well as the beginning of the notebook.
+Probably one the biggest issues in this module is the fact that database credentials are explicitly used,
+leaving vulnerabilities for attacks.
+"""
 
 def retreive_database_details(database_name = "property_prices"):
     general_database_details = {"database_url": config["database_url"],

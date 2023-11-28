@@ -9,6 +9,16 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 import seaborn as sns
 
+"""
+Step 2 of the pipeline - Data assessing. In this module we will be dealing with -
+1. Sampling our prices coordinated database and do some sanity checks (run in tests rather than in the notebook)
+2. Prepare some APIs for interacting with osmnx
+3. Prepare some common encoding methods and visualise the sampled data in some generic way.
+The most noticable issue with the module is the performance.
+Both the database and the open street map API could take a lot of time even with some basic interactions,
+making it hard to keep thing on scale.
+"""
+
 default_tag_list = [{"amenity": 'school'},
                     {"amenity": 'hospital'},
                     {"amenity": 'library'},
@@ -18,6 +28,8 @@ default_tag_list = [{"amenity": 'school'},
                     {"leisure": True}]
 
 default_tag_col_list = [list(d.items())[0] for d in default_tag_list]
+
+property_type_values = ['D', 'S', 'T', 'F', 'O']
 
 class PricesCoordinatesData:
     _data = None
@@ -94,7 +106,7 @@ def prices_coordinates_database_content_full_check():
     ok &= type(df['date_of_transfer'].iloc[0]) is datetime.date
     ok &= df['date_of_transfer'].min() == datetime.date(1995, 1, 1)
     ok &= df['date_of_transfer'].max() == datetime.date(2022, 12, 31)
-    ok &= sorted(df['property_type'].unique()) == sorted(np.array(['D', 'S', 'T', 'F', 'O']))
+    ok &= sorted(df['property_type'].unique()) == sorted(np.array(property_type_values))
     ok &= df['latitude'].min() >= 48
     ok &= df['latitude'].max() <= 65
     ok &= df['longitude'].min() >= -10
@@ -119,7 +131,7 @@ def prices_coordinates_database_content_basic_check():
     ok &= type(df['date_of_transfer'].iloc[0]) is datetime.date
     ok &= df['date_of_transfer'].min() >= datetime.date(1995, 1, 1)
     ok &= df['date_of_transfer'].max() <= datetime.date(2022, 12, 31)
-    ok &= set(df['property_type'].unique()).issubset(['D', 'S', 'T', 'F', 'O'])
+    ok &= set(df['property_type'].unique()).issubset(property_type_values)
     ok &= df['latitude'].min() >= 48
     ok &= df['latitude'].max() <= 65
     ok &= df['longitude'].min() >= -10
@@ -166,7 +178,7 @@ def get_closest_pois_list(tag_list, feature_list, latitude, longitude, start_deg
             pois_list[(k, v)] = pois
     return pois_list
 
-def extract_closest_euclidean_dist_from_pois(pois_list, tag, latitude, longitude, fail_filler = -1):
+def extract_closest_euclidean_dist_from_pois(pois_list, tag, latitude, longitude, fail_filler = 1):
     def euclidean_distance(a_loc, b_loc):
         (a_lat, a_lon) = (a_loc.y, a_loc.x)
         (b_lat, b_lon) = b_loc
@@ -251,10 +263,13 @@ def prepare_full_price_data_from_price_data(price_data, padding_deg = 0.1, tag_l
     return price_data, pois_list
     
 def prepare_full_price_data_within_bbox_and_date_range(bounding_box, date_range, conn, \
-                                                  padding_deg = 0.1, tag_list = default_tag_list, \
+                                                  padding_deg = 0.1, tag_list = default_tag_list, active = True\
                                                   ):
-    pois_bounding_box = pad_bounding_box(bounding_box, padding_deg)
-    pois_list = get_bounded_pois_list(tag_list, pois_bounding_box)
+    if (active):
+        pois_bounding_box = pad_bounding_box(bounding_box, padding_deg)
+        pois_list = get_bounded_pois_list(tag_list, pois_bounding_box)
+    else:
+        pois_list = {}
     price_data = select_all_price_data_within_bbox_and_date_range(bounding_box, date_range, conn)
     for (k, v) in pois_list:
         col_name = column_name_of_tag((k, v))
@@ -298,7 +313,7 @@ def square_root_column(df, column_name):
 def encode_pure_price_data(price_data = PricesCoordinatesData.get_data()):
     assert set(['price', 'date_of_transfer', 'property_type', 'latitude', 'longitude']).issubset(set(price_data.columns))
     price_data = price_data.copy()
-    price_data = one_hot_encode_column(price_data, 'property_type', ['D', 'S', 'T', 'F', 'O'])
+    price_data = one_hot_encode_column(price_data, 'property_type', property_type_values)
     price_data = date_to_days_encode_column(price_data, 'date_of_transfer')
     return price_data
 
@@ -398,6 +413,7 @@ def plot_average_house_price_against_year(price_data = PricesCoordinatesData.get
     plt.title('Average Price of Sampled Data per Year')
     plt.xlabel('Year')
     plt.ylabel('Average Price')
+    plt.ylim(bottom=0)
     plt.xlim([1995, 2021])
     plt.grid(True)
     plt.show()
