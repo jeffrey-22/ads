@@ -25,7 +25,7 @@ def test_feature_gen_small_example(address_module):
         'property_type': ['O'],
         'amenity_school': math.sqrt(10),
         'amenity_hospital': math.sqrt(10),
-        'amenity_library': -1,
+        'amenity_library': 1,
         'amenity_restaurant': math.sqrt(10),
         'public_transport': math.sqrt(10),
         'shop': math.sqrt(5),
